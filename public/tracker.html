@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="description" content="Offline-capable Trip Tracker with AMOLED UI" />
+  <title>Trip Tracker AMOLED</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    :root {
+      --bg: #000000;
+      --panel: #0d0d0f;
+      --panel-soft: #111114;
+      --line: #27272a;
+      --text: #f5f5f5;
+      --muted: #a1a1aa;
+      --accent: #ff3b30;
+      --accent-2: #ff6a3d;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --danger: #fb7185;
+      --shadow-red: 0 0 30px rgba(255, 59, 48, 0.45), 0 0 80px rgba(255, 59, 48, 0.2);
+      --radius-xl: 26px;
+      --radius-lg: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      overscroll-behavior: none;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+      background:
+        radial-gradient(circle at 50% 28%, rgba(255, 59, 48, 0.2), rgba(255, 59, 48, 0.02) 28%, transparent 55%),
+        linear-gradient(180deg, #010101 0%, #000 35%, #000 100%);
+    }
+
+    .app {
+      width: min(100vw, 460px);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      padding: 14px 14px 18px;
+      gap: 10px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(180deg, rgba(23,23,26,0.95), rgba(16,16,18,0.85));
+      border: 1px solid #1f1f23;
+      border-radius: 18px;
+      padding: 10px 12px;
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 8px;
+      z-index: 500;
+    }
+
+    .left-top,
+    .right-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pill {
+      font-size: 12px;
+      color: var(--muted);
+      background: #0b0b0d;
+      border: 1px solid #202026;
+      border-radius: 999px;
+      padding: 7px 10px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .pill strong {
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .btn-icon,
+    .btn {
+      border: 1px solid #2a2a31;
+      background: linear-gradient(180deg, #1a1a20, #101014);
+      color: #ececec;
+      border-radius: 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, opacity .2s;
+    }
+
+    .btn-icon {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+    }
+
+    .btn {
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .btn:hover,
+    .btn-icon:hover {
+      border-color: #3b3b44;
+      transform: translateY(-1px);
+    }
+
+    .btn:active,
+    .btn-icon:active {
+      transform: translateY(0);
+    }
+
+    .hero {
+      background: linear-gradient(180deg, rgba(20,20,24,.7), rgba(11,11,13,.65));
+      border: 1px solid #1f1f24;
+      border-radius: var(--radius-xl);
+      padding: 16px 14px 12px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .distance-top {
+      text-align: center;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      margin-bottom: 2px;
+    }
+
+    .distance-top span {
+      font-size: 14px;
+      color: var(--muted);
+      font-weight: 600;
+      margin-left: 5px;
+    }
+
+    .speed-wrap {
+      display: grid;
+      place-items: center;
+      padding: 8px 0 10px;
+      min-height: 190px;
+      text-align: center;
+    }
+
+    .speed {
+      font-size: clamp(88px, 24vw, 132px);
+      line-height: .9;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      color: #ffffff;
+      text-shadow: var(--shadow-red);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .unit {
+      margin-top: 8px;
+      color: #ffe2de;
+      font-size: 27px;
+      letter-spacing: .09em;
+      text-shadow: 0 0 24px rgba(255, 59, 48, .45);
+      font-weight: 700;
+    }
+
+    .stats {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      background: linear-gradient(180deg, rgba(30, 6, 6, 0.42), rgba(15, 5, 5, 0.5));
+      border: 1px solid #2b1717;
+      border-radius: var(--radius-lg);
+      padding: 14px;
+    }
+
+    .stat h4 {
+      margin: 0;
+      color: #ff5f56;
+      font-size: 13px;
+      letter-spacing: .02em;
+      font-weight: 700;
+    }
+
+    .stat p {
+      margin: 6px 0 0;
+      font-size: 20px;
+      font-weight: 700;
+      color: #f3f3f3;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .map-card {
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid #202026;
+      background: #0d0d10;
+      min-height: 300px;
+      position: relative;
+      box-shadow: 0 16px 45px rgba(0,0,0,.35);
+    }
+
+    #map {
+      height: 100%;
+      min-height: 300px;
+      width: 100%;
+      filter: saturate(1.04);
+    }
+
+    .map-overlay {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 7px;
+      z-index: 600;
+    }
+
+    .map-toggle {
+      padding: 7px 11px;
+      border: 1px solid #2a2a31;
+      border-radius: 999px;
+      background: rgba(10,10,12,.84);
+      color: #d6d6d9;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .map-toggle.active {
+      border-color: #ff3b30;
+      color: #fff;
+      box-shadow: 0 0 0 1px rgba(255,59,48,.25), 0 8px 22px rgba(255,59,48,.24);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 2px;
+    }
+
+    .btn.primary {
+      background: linear-gradient(180deg, #ff4d42, #cf261d);
+      border-color: #ff6a62;
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(255, 59, 48, .35);
+    }
+
+    .btn.good {
+      background: linear-gradient(180deg, #123027, #0d231d);
+      border-color: #1f4b3d;
+      color: #b9f7df;
+    }
+
+    .log {
+      margin-top: 2px;
+      border: 1px solid #1f1f24;
+      border-radius: 16px;
+      background: #0c0c0f;
+      padding: 10px;
+      height: 142px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #d1d5db;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .log .evt-stop { color: #fca5a5; }
+    .log .evt-resume { color: #86efac; }
+    .log .evt-point { color: #93c5fd; }
+    .log .evt-info { color: #fde68a; }
+
+    .status {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      min-height: 16px;
+    }
+
+    .leaflet-control-zoom a {
+      background: #101015 !important;
+      color: #f4f4f5 !important;
+      border-color: #2a2a31 !important;
+    }
+
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip {
+      background: #111115;
+      color: #f9f9fb;
+      border: 1px solid #2c2c33;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="left-top">
+        <button id="fullscreenBtn" class="btn-icon" title="Fullscreen">⛶</button>
+        <button id="wakeBtn" class="btn-icon" title="Screen Wake Lock">💡</button>
+      </div>
+      <div class="pill" id="clock">--:--:--</div>
+      <div class="right-top">
+        <div class="pill">GPS <strong id="gpsStatus">Idle</strong></div>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="distance-top"><span>Total</span> <strong id="distance">0.00</strong> <span>km</span></div>
+      <div class="speed-wrap">
+        <div class="speed" id="speed">0</div>
+        <div class="unit">KM/H</div>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <h4>Average</h4>
+          <p id="avg">0 km/h</p>
+        </div>
+        <div class="stat">
+          <h4>Top</h4>
+          <p id="top">0 km/h</p>
+        </div>
+        <div class="stat">
+          <h4>Duration</h4>
+          <p id="duration">00:00:00</p>
+        </div>
+        <div class="stat">
+          <h4>Points</h4>
+          <p id="points">0</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="map-card">
+      <div id="map"></div>
+      <div class="map-overlay">
+        <button class="map-toggle active" id="lightMapBtn">Light</button>
+        <button class="map-toggle" id="amoledMapBtn">AMOLED</button>
+      </div>
+    </section>
+
+    <section class="controls">
+      <button id="startBtn" class="btn primary">Start</button>
+      <button id="stopBtn" class="btn">Stop</button>
+      <button id="exportBtn" class="btn good">Export .txt</button>
+    </section>
+
+    <div id="status" class="status">Ready. Tap Start to begin tracking.</div>
+    <div id="log" class="log" aria-live="polite"></div>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    (() => {
+      const state = {
+        map: null,
+        layers: { light: null, dark: null },
+        usingDark: false,
+        polyline: null,
+        points: [],
+        logs: [],
+        watchId: null,
+        isTracking: false,
+        isIdle: false,
+        lastPosition: null,
+        totalDistanceKm: 0,
+        startTime: null,
+        endTime: null,
+        maxSpeed: 0,
+        speedSamples: [],
+        minuteTimer: null,
+        wakeLock: null,
+        audioCtx: null,
+        clickIntervalId: null,
+        currentSpeedKmh: 0,
+      };
+
+      const els = {
+        speed: document.getElementById('speed'),
+        distance: document.getElementById('distance'),
+        avg: document.getElementById('avg'),
+        top: document.getElementById('top'),
+        duration: document.getElementById('duration'),
+        points: document.getElementById('points'),
+        log: document.getElementById('log'),
+        status: document.getElementById('status'),
+        gpsStatus: document.getElementById('gpsStatus'),
+        startBtn: document.getElementById('startBtn'),
+        stopBtn: document.getElementById('stopBtn'),
+        exportBtn: document.getElementById('exportBtn'),
+        wakeBtn: document.getElementById('wakeBtn'),
+        fullscreenBtn: document.getElementById('fullscreenBtn'),
+        lightMapBtn: document.getElementById('lightMapBtn'),
+        amoledMapBtn: document.getElementById('amoledMapBtn'),
+        clock: document.getElementById('clock'),
+      };
+
+      const fmt = {
+        n: (num, d = 2) => Number(num || 0).toFixed(d),
+        t: (ts) => new Date(ts).toLocaleTimeString([], { hour12: true }),
+        dt: (ts) => new Date(ts).toLocaleString(),
+        dur(ms) {
+          const sec = Math.max(0, Math.floor(ms / 1000));
+          const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+          const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+          const s = String(sec % 60).padStart(2, '0');
+          return `${h}:${m}:${s}`;
+        },
+      };
+
+      function addLog(type, text) {
+        const line = document.createElement('div');
+        line.className = `evt-${type}`;
+        line.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+        els.log.prepend(line);
+      }
+
+      function setStatus(text) {
+        els.status.textContent = text;
+      }
+
+      function updateClock() {
+        els.clock.textContent = new Date().toLocaleTimeString();
+      }
+      setInterval(updateClock, 1000);
+      updateClock();
+
+      function initMap() {
+        state.map = L.map('map', {
+          zoomControl: true,
+          preferCanvas: true,
+        }).setView([20, 0], 2);
+
+        state.layers.light = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 20,
+          attribution: '&copy; OpenStreetMap contributors',
+        });
+
+        state.layers.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          maxZoom: 20,
+          attribution: '&copy; OpenStreetMap &copy; CARTO',
+        });
+
+        state.layers.light.addTo(state.map);
+
+        state.polyline = L.polyline([], {
+          color: '#3b82f6',
+          weight: 5,
+          opacity: .9,
+          smoothFactor: 1.1,
+        }).addTo(state.map);
+      }
+
+      function switchMap(useDark) {
+        state.usingDark = useDark;
+        if (!state.map) return;
+        if (useDark) {
+          state.map.removeLayer(state.layers.light);
+          state.layers.dark.addTo(state.map);
+          els.amoledMapBtn.classList.add('active');
+          els.lightMapBtn.classList.remove('active');
+          state.polyline.setStyle({ color: '#60a5fa' });
+        } else {
+          state.map.removeLayer(state.layers.dark);
+          state.layers.light.addTo(state.map);
+          els.lightMapBtn.classList.add('active');
+          els.amoledMapBtn.classList.remove('active');
+          state.polyline.setStyle({ color: '#2563eb' });
+        }
+      }
+
+      function haversineKm(lat1, lon1, lat2, lon2) {
+        const toRad = (d) => (d * Math.PI) / 180;
+        const R = 6371;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(a));
+      }
+
+      function speedFromPosition(position) {
+        const s = position.coords.speed;
+        return s == null || Number.isNaN(s) ? 0 : Math.max(0, s * 3.6);
+      }
+
+      function pushMinuteLog(eventType = 'POINT', overridePos = null, overrideSpeed = null) {
+        if (!state.lastPosition && !overridePos) return;
+
+        const src = overridePos || state.lastPosition;
+        const speedKmh = overrideSpeed == null ? state.currentSpeedKmh : overrideSpeed;
+
+        const item = {
+          type: eventType,
+          ts: Date.now(),
+          lat: src.coords.latitude,
+          lng: src.coords.longitude,
+          speedKmh: Number(speedKmh.toFixed(2)),
+          totalDistanceKm: Number(state.totalDistanceKm.toFixed(4)),
+        };
+
+        state.logs.push(item);
+
+        if (eventType === 'STOP') {
+          addLog('stop', `STOP @ ${item.lat.toFixed(5)}, ${item.lng.toFixed(5)}`);
+        } else if (eventType === 'RESUME') {
+          addLog('resume', `RESUME @ ${item.lat.toFixed(5)}, ${item.lng.toFixed(5)} (${fmt.n(item.speedKmh, 1)} km/h)`);
+        } else {
+          addLog('point', `LOG ${fmt.dt(item.ts)} | ${item.lat.toFixed(5)}, ${item.lng.toFixed(5)} | ${fmt.n(item.speedKmh, 1)} km/h`);
+        }
+      }
+
+      function updateUI() {
+        const avg = state.speedSamples.length
+          ? state.speedSamples.reduce((a, b) => a + b, 0) / state.speedSamples.length
+          : 0;
+
+        els.speed.textContent = Math.round(state.currentSpeedKmh);
+        els.distance.textContent = fmt.n(state.totalDistanceKm, 2);
+        els.avg.textContent = `${Math.round(avg)} km/h`;
+        els.top.textContent = `${Math.round(state.maxSpeed)} km/h`;
+        els.points.textContent = String(state.points.length);
+
+        const end = state.isTracking ? Date.now() : (state.endTime || Date.now());
+        const durationMs = state.startTime ? end - state.startTime : 0;
+        els.duration.textContent = fmt.dur(durationMs);
+      }
+
+      setInterval(updateUI, 1000);
+
+      function onPosition(position) {
+        if (!state.isTracking) return;
+
+        state.lastPosition = position;
+        const { latitude, longitude } = position.coords;
+        const latlng = [latitude, longitude];
+        const speedKmh = speedFromPosition(position);
+        state.currentSpeedKmh = speedKmh;
+        state.maxSpeed = Math.max(state.maxSpeed, speedKmh);
+        state.speedSamples.push(speedKmh);
+
+        if (state.points.length > 0) {
+          const prev = state.points[state.points.length - 1];
+          const deltaKm = haversineKm(prev[0], prev[1], latitude, longitude);
+          if (deltaKm > 0.001) {
+            state.totalDistanceKm += deltaKm;
+          }
+        }
+
+        state.points.push(latlng);
+        state.polyline.addLatLng(latlng);
+
+        if (state.points.length === 1) {
+          state.map.setView(latlng, 16);
+          L.circleMarker(latlng, { radius: 7, color: '#22c55e', fillOpacity: 0.9 }).addTo(state.map)
+            .bindPopup('Trip started here').openPopup();
+        } else {
+          state.map.panTo(latlng, { animate: true, duration: 0.25 });
+        }
+
+        if (!state.isIdle && speedKmh <= 0.2) {
+          state.isIdle = true;
+          pushMinuteLog('STOP', position, 0);
+        } else if (state.isIdle && speedKmh > 0.8) {
+          state.isIdle = false;
+          pushMinuteLog('RESUME', position, speedKmh);
+        }
+
+        updateClickTrack();
+        updateUI();
+      }
+
+      function onPositionError(err) {
+        els.gpsStatus.textContent = 'Error';
+        setStatus(`Geolocation error: ${err.message}`);
+        addLog('info', `GPS error: ${err.message}`);
+      }
+
+      function startMinuteLogging() {
+        clearInterval(state.minuteTimer);
+        state.minuteTimer = setInterval(() => {
+          if (state.isTracking) pushMinuteLog('POINT');
+        }, 60000);
+      }
+
+      function stopMinuteLogging() {
+        clearInterval(state.minuteTimer);
+        state.minuteTimer = null;
+      }
+
+      async function requestWakeLock() {
+        if (!('wakeLock' in navigator)) {
+          setStatus('Wake Lock API not supported by this browser.');
+          addLog('info', 'Wake Lock not supported');
+          return;
+        }
+
+        try {
+          state.wakeLock = await navigator.wakeLock.request('screen');
+          setStatus('Screen Wake Lock active.');
+          addLog('info', 'Wake Lock enabled');
+          state.wakeLock.addEventListener('release', () => {
+            addLog('info', 'Wake Lock released by browser');
+          });
+        } catch (e) {
+          setStatus('Wake Lock denied. Interact and try again.');
+          addLog('info', `Wake Lock failed: ${e.message}`);
+        }
+      }
+
+      async function enterFullscreen() {
+        const el = document.documentElement;
+        if (!document.fullscreenElement && el.requestFullscreen) {
+          try {
+            await el.requestFullscreen();
+            addLog('info', 'Entered fullscreen mode');
+          } catch {
+            setStatus('Fullscreen requires user interaction on many browsers.');
+          }
+        }
+      }
+
+      function initAudio() {
+        if (!state.audioCtx) {
+          state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+      }
+
+      function clickOnce() {
+        if (!state.audioCtx) return;
+        const now = state.audioCtx.currentTime;
+        const osc = state.audioCtx.createOscillator();
+        const gain = state.audioCtx.createGain();
+
+        const f = 340 + Math.min(320, state.currentSpeedKmh * 3.5);
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(f, now);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.12, now + 0.006);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.03);
+
+        osc.connect(gain);
+        gain.connect(state.audioCtx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.035);
+      }
+
+      function updateClickTrack() {
+        if (!state.isTracking || !state.audioCtx) return;
+        if (state.clickIntervalId) {
+          clearInterval(state.clickIntervalId);
+          state.clickIntervalId = null;
+        }
+
+        const speed = state.currentSpeedKmh;
+        const interval = Math.max(120, 1100 - speed * 18);
+        state.clickIntervalId = setInterval(clickOnce, interval);
+      }
+
+      function stopClickTrack() {
+        if (state.clickIntervalId) {
+          clearInterval(state.clickIntervalId);
+          state.clickIntervalId = null;
+        }
+      }
+
+      function startTracking() {
+        if (!('geolocation' in navigator)) {
+          setStatus('Geolocation is not supported in this browser.');
+          return;
+        }
+        if (state.isTracking) return;
+
+        initAudio();
+        if (state.audioCtx?.state === 'suspended') {
+          state.audioCtx.resume().catch(() => {});
+        }
+
+        state.isTracking = true;
+        state.startTime = state.startTime || Date.now();
+        state.endTime = null;
+        els.gpsStatus.textContent = 'Live';
+
+        state.watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 1000,
+        });
+
+        startMinuteLogging();
+        updateClickTrack();
+        setStatus('Tracking active. Logging every 60 seconds.');
+        addLog('info', 'Trip tracking started');
+      }
+
+      function stopTracking() {
+        if (!state.isTracking) return;
+        state.isTracking = false;
+        state.endTime = Date.now();
+
+        if (state.watchId != null) {
+          navigator.geolocation.clearWatch(state.watchId);
+          state.watchId = null;
+        }
+
+        stopMinuteLogging();
+        stopClickTrack();
+        els.gpsStatus.textContent = 'Stopped';
+        setStatus('Tracking stopped. You can export your trip log.');
+        addLog('info', 'Trip tracking stopped');
+      }
+
+      function exportTxt() {
+        if (state.logs.length === 0 && state.points.length === 0) {
+          setStatus('No trip data to export yet.');
+          return;
+        }
+
+        const start = state.startTime ? fmt.dt(state.startTime) : 'N/A';
+        const end = state.endTime ? fmt.dt(state.endTime) : fmt.dt(Date.now());
+        const duration = state.startTime ? fmt.dur((state.endTime || Date.now()) - state.startTime) : '00:00:00';
+        const avg = state.speedSamples.length
+          ? state.speedSamples.reduce((a, b) => a + b, 0) / state.speedSamples.length
+          : 0;
+
+        const lines = [];
+        lines.push('TRIP TRACKER BLACK BOX REPORT');
+        lines.push('======================================');
+        lines.push(`Start Time: ${start}`);
+        lines.push(`End Time:   ${end}`);
+        lines.push(`Duration:   ${duration}`);
+        lines.push(`Distance:   ${fmt.n(state.totalDistanceKm, 3)} km`);
+        lines.push(`Avg Speed:  ${fmt.n(avg, 1)} km/h`);
+        lines.push(`Top Speed:  ${fmt.n(state.maxSpeed, 1)} km/h`);
+        lines.push(`Track Points: ${state.points.length}`);
+        lines.push('');
+        lines.push('CHRONOLOGICAL ENTRIES');
+        lines.push('--------------------------------------');
+
+        state.logs
+          .sort((a, b) => a.ts - b.ts)
+          .forEach((l, i) => {
+            lines.push(
+              `${String(i + 1).padStart(4, '0')} | ${fmt.dt(l.ts)} | ${l.type.padEnd(6, ' ')} | ` +
+              `Lat ${l.lat.toFixed(6)} Lng ${l.lng.toFixed(6)} | Speed ${fmt.n(l.speedKmh, 1)} km/h | ` +
+              `Distance ${fmt.n(l.totalDistanceKm, 3)} km`
+            );
+          });
+
+        lines.push('');
+        lines.push('END OF REPORT');
+
+        const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a');
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        a.href = URL.createObjectURL(blob);
+        a.download = `trip-blackbox-${stamp}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+
+        setStatus('Exported trip report as .txt file.');
+        addLog('info', 'TXT report exported');
+      }
+
+      function installOfflineSupport() {
+        if (!('serviceWorker' in navigator)) return;
+
+        const swCode = `
+          const CACHE_NAME = 'trip-tracker-v1';
+          const CORE_ASSETS = [
+            self.location.href,
+            'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+            'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+          ];
+
+          self.addEventListener('install', (event) => {
+            event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)).then(() => self.skipWaiting()));
+          });
+
+          self.addEventListener('activate', (event) => {
+            event.waitUntil(
+              caches.keys().then((keys) => Promise.all(keys.map((k) => k !== CACHE_NAME ? caches.delete(k) : null))).then(() => self.clients.claim())
+            );
+          });
+
+          self.addEventListener('fetch', (event) => {
+            const req = event.request;
+            if (req.method !== 'GET') return;
+
+            // Cache-first for map tiles and static assets
+            const url = new URL(req.url);
+            const isTile = url.hostname.includes('tile.openstreetmap.org') || url.hostname.includes('basemaps.cartocdn.com');
+            const isStatic = url.hostname.includes('unpkg.com');
+
+            if (isTile || isStatic) {
+              event.respondWith(
+                caches.match(req).then((cached) => {
+                  if (cached) return cached;
+                  return fetch(req)
+                    .then((res) => {
+                      const copy = res.clone();
+                      caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+                      return res;
+                    })
+                    .catch(() => cached);
+                })
+              );
+              return;
+            }
+
+            // Network-first for document
+            event.respondWith(
+              fetch(req)
+                .then((res) => {
+                  const copy = res.clone();
+                  caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+                  return res;
+                })
+                .catch(() => caches.match(req))
+            );
+          });
+        `;
+
+        const blob = new Blob([swCode], { type: 'text/javascript' });
+        const swUrl = URL.createObjectURL(blob);
+
+        navigator.serviceWorker.register(swUrl)
+          .then(() => addLog('info', 'Offline cache enabled'))
+          .catch((err) => addLog('info', `SW registration failed: ${err.message}`));
+      }
+
+      function bindEvents() {
+        els.startBtn.addEventListener('click', async () => {
+          await enterFullscreen();
+          await requestWakeLock();
+          startTracking();
+        });
+
+        els.stopBtn.addEventListener('click', stopTracking);
+        els.exportBtn.addEventListener('click', exportTxt);
+        els.wakeBtn.addEventListener('click', requestWakeLock);
+        els.fullscreenBtn.addEventListener('click', enterFullscreen);
+        els.lightMapBtn.addEventListener('click', () => switchMap(false));
+        els.amoledMapBtn.addEventListener('click', () => switchMap(true));
+
+        document.addEventListener('visibilitychange', async () => {
+          if (document.visibilityState === 'visible' && state.wakeLock == null && state.isTracking) {
+            await requestWakeLock();
+          }
+        });
+
+        window.addEventListener('beforeunload', () => {
+          stopTracking();
+          if (state.wakeLock) state.wakeLock.release().catch(() => {});
+        });
+      }
+
+      async function init() {
+        initMap();
+        bindEvents();
+        installOfflineSupport();
+        setStatus('Ready. Start trip to enable GPS logging + sound + wake lock.');
+
+        // Best effort fullscreen request on load; most browsers require user gesture.
+        enterFullscreen();
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>
